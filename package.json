@@ -1,0 +1,37 @@
+{
+  "name": "postmon",
+  "version": "0.2.0",
+  "description": "A compact cyber-style Electron launcher and report viewer for Newman/Postman collection runs.",
+  "author": "MZero2",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer/app.js && node --check src/renderer/i18n.js",
+    "package:win": "electron-builder --win portable"
+  },
+  "dependencies": {
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "local.postmon",
+    "productName": "PostMON",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "signAndEditExecutable": false
+    }
+  }
+}

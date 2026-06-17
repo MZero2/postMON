@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PostMON</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <img class="mascot" src="./assets/monsters/verdino.png" alt="" />
+          <div>
+            <h1>PostMON</h1>
+            <p data-i18n="app.subtitle">Newman runner compatto per cacciare bug nelle collection Postman</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="lang-picker">
+            <label for="langSelect" data-i18n="label.language">Lingua</label>
+            <select id="langSelect"></select>
+          </div>
+          <div class="run-actions">
+            <button id="runAllButton" class="primary" data-i18n="btn.runAll">Run All</button>
+            <button id="runSelectedButton" data-i18n="btn.runSelected">Run Selected</button>
+            <button id="stopButton" disabled data-i18n="btn.stop">Stop</button>
+            <button id="resetButton" data-i18n="btn.reset">Reset</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="controls" aria-label="Config">
+        <div class="field wide">
+          <label for="collectionPath" data-i18n="label.collection">Collection</label>
+          <div class="input-row">
+            <input id="collectionPath" type="text" readonly data-i18n-placeholder="ph.collection" placeholder="Scegli una collection o una cartella" />
+            <button id="browseCollection" data-i18n="btn.browse">Sfoglia</button>
+            <button id="browseFolder" data-i18n="btn.folder">Cartella</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="collectionSelect" data-i18n="label.foundCollections">Collection trovate</label>
+          <select id="collectionSelect" disabled>
+            <option data-i18n="opt.noFolder">Nessuna cartella selezionata</option>
+          </select>
+        </div>
+
+        <div class="folder-picker">
+          <div class="folder-panel">
+            <div class="panel-title">
+              <span data-i18n="label.folderTree">Folder collection</span>
+              <button id="expandFolders" type="button" data-i18n="btn.collapse">Comprimi</button>
+            </div>
+            <div id="folderTree" class="folder-tree empty" data-i18n="msg.chooseCollection">Scegli una collection.</div>
+          </div>
+          <div class="folder-panel selected-panel">
+            <div class="panel-title">
+              <span data-i18n="label.runSelected">Run selected</span>
+              <button id="clearSelectedFolders" type="button" data-i18n="btn.clear">Pulisci</button>
+            </div>
+            <div id="selectedFolders" class="selected-folders empty" data-i18n="msg.noFolderSelected">Nessuna folder selezionata.</div>
+          </div>
+        </div>
+
+        <div class="field wide">
+          <label for="environmentPath" data-i18n="label.environment">Environment</label>
+          <div class="input-row">
+            <input id="environmentPath" type="text" readonly data-i18n-placeholder="ph.optional" placeholder="Opzionale" />
+            <button id="browseEnvironment" data-i18n="btn.browse">Sfoglia</button>
+            <button id="clearEnvironment" data-i18n-title="title.removeEnv" title="Rimuovi environment">X</button>
+          </div>
+        </div>
+
+        <div class="field wide">
+          <label for="globalsPath" data-i18n="label.globals">Globals</label>
+          <div class="input-row">
+            <input id="globalsPath" type="text" readonly data-i18n-placeholder="ph.globalsOpt" placeholder="Opzionale: esporta i globals da Postman se servono" />
+            <button id="browseGlobals" data-i18n="btn.browse">Sfoglia</button>
+            <button id="clearGlobals" data-i18n-title="title.removeGlobals" title="Rimuovi globals">X</button>
+          </div>
+        </div>
+
+        <div class="field small">
+          <label for="timeoutRequest" data-i18n="label.timeout">Timeout request ms</label>
+          <input id="timeoutRequest" type="number" min="0" step="1000" value="0" data-i18n-placeholder="ph.timeout" placeholder="0 = Newman default" />
+        </div>
+
+        <div class="field small">
+          <label for="delayRequest" data-i18n="label.delay">Delay request ms</label>
+          <input id="delayRequest" type="number" min="0" step="100" value="100" data-i18n-placeholder="ph.delay" placeholder="0 = nessun delay" />
+        </div>
+
+        <div class="field wide">
+          <label for="proxy" data-i18n="label.proxy">Proxy Newman</label>
+          <input id="proxy" type="text" data-i18n-placeholder="ph.proxy" placeholder="Opzionale, es. http://proxy:8080" />
+        </div>
+
+        <label class="check">
+          <input id="insecure" type="checkbox" />
+          <span data-i18n="label.insecure">Ignora errori SSL</span>
+        </label>
+
+        <div class="field wide">
+          <label for="reportDir" data-i18n="label.reportDir">Cartella report</label>
+          <div class="input-row">
+            <input id="reportDir" type="text" readonly data-i18n-placeholder="ph.reportDir" placeholder="Default app; puoi scegliere una cartella" />
+            <button id="browseReportDir" data-i18n="btn.browse">Sfoglia</button>
+            <button id="clearReportDir" data-i18n-title="title.useDefault" title="Usa default app">X</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="summary" aria-label="Summary">
+        <div><strong id="totalCount">0</strong><span data-i18n="kpi.request">request</span></div>
+        <div><strong id="passCount">0</strong><span data-i18n="kpi.requestOk">request ok</span></div>
+        <div><strong id="failCount">0</strong><span data-i18n="kpi.requestKo">request ko</span></div>
+        <div><strong id="testCount">0</strong><span data-i18n="kpi.test">test</span></div>
+        <div><strong id="testFailCount">0</strong><span data-i18n="kpi.testKo">test ko</span></div>
+        <div><strong id="duration">-</strong><span data-i18n="kpi.duration">durata</span></div>
+        <div class="status" id="statusText">Pronto</div>
+      </section>
+
+      <section class="actions" aria-label="Report">
+        <button id="openReport" disabled data-i18n="btn.openReport">Apri report</button>
+        <button id="saveReport" disabled data-i18n="btn.saveReport">Salva report...</button>
+        <span id="reportPath"></span>
+      </section>
+
+      <section class="command-box" aria-label="Command">
+        <label for="commandPreview" data-i18n="label.command">Comando Newman equivalente</label>
+        <textarea id="commandPreview" readonly data-i18n-placeholder="ph.command" placeholder="Il comando comparira quando avvii una run."></textarea>
+      </section>
+
+      <section class="table-wrap" aria-label="Calls">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="th.outcome">Esito</th>
+              <th data-i18n="th.method">Metodo</th>
+              <th data-i18n="th.requestAndTest">Request e test</th>
+              <th data-i18n="th.status">Status</th>
+              <th data-i18n="th.time">Tempo</th>
+              <th data-i18n="th.error">Errore</th>
+            </tr>
+          </thead>
+          <tbody id="resultRows">
+            <tr class="empty">
+              <td colspan="6" data-i18n="msg.noRunYet">Nessuna run ancora eseguita.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script src="./i18n.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
