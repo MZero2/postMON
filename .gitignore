@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+*.exe
+*.dmg
+*.zip
+*.7z
+*.tar.gz
+*.nsis.7z
+
+# Newman reports (may contain request/response data, tokens, PII)
+reports/
+*-postmon.html
+*-htmlextra.html
+newman/
+
+# Electron-builder cache
+.cache/
+
+# Local config (may contain credentials, paths)
+.env
+.env.*
+config.local.json
+local.config.json
+
+# Postman exports (may contain auth, tokens)
+*.postman_collection.json
+*.postman_environment.json
+*.postman_globals.json
+!example.postman_collection.json
+!sample.postman_collection.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# Logs
+logs/
+*.log
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Temp
+tmp/
+temp/
