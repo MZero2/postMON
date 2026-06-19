@@ -1,4 +1,5 @@
-:root {
+:root,
+body.flavour-verdino {
   --bg: #04110a;
   --panel: #07180f;
   --panel-2: #0b2418;
@@ -15,6 +16,76 @@
   --warn: #ffd84d;
   --warn-bg: #2b2312;
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body.flavour-pyra {
+  --bg: #140502;
+  --panel: #1c0805;
+  --panel-2: #2a0d07;
+  --text: #ffd9c5;
+  --muted: #b58a76;
+  --line: #4a1810;
+  --accent: #ff6a3d;
+  --accent-dark: #8a2a14;
+  --cyan: #ffb347;
+  --ok: #ff9466;
+  --ok-bg: #2a0d07;
+}
+
+body.flavour-pingu {
+  --bg: #02101e;
+  --panel: #051a30;
+  --panel-2: #082547;
+  --text: #d4ecff;
+  --muted: #7aa8d4;
+  --line: #15406b;
+  --accent: #4ab8ff;
+  --accent-dark: #185f9c;
+  --cyan: #6fd2ff;
+  --ok: #88d6ff;
+  --ok-bg: #082547;
+}
+
+body.flavour-cryptoa {
+  --bg: #0f0518;
+  --panel: #18082a;
+  --panel-2: #25113f;
+  --text: #ead4ff;
+  --muted: #9d80c2;
+  --line: #3a1e60;
+  --accent: #b56aff;
+  --accent-dark: #5d2a8a;
+  --cyan: #d088ff;
+  --ok: #c98aff;
+  --ok-bg: #25113f;
+}
+
+body.flavour-glitcho {
+  --bg: #08020d;
+  --panel: #10051a;
+  --panel-2: #1a0a28;
+  --text: #ffd5f0;
+  --muted: #b88ac0;
+  --line: #401a4a;
+  --accent: #ff3aa8;
+  --accent-dark: #8a1a5c;
+  --cyan: #3ad8ff;
+  --ok: #ff66c4;
+  --ok-bg: #1a0a28;
+}
+
+body.flavour-packbot {
+  --bg: #100b04;
+  --panel: #1a1208;
+  --panel-2: #281c0d;
+  --text: #ffe9c0;
+  --muted: #b89870;
+  --line: #4a3618;
+  --accent: #ffaa33;
+  --accent-dark: #8a5a0d;
+  --cyan: #ffd24a;
+  --ok: #ffc266;
+  --ok-bg: #281c0d;
 }
 
 * {
@@ -93,6 +164,13 @@ button.primary:hover:not(:disabled) {
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
+}
+
+.pickers {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .lang-picker {

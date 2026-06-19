@@ -18,6 +18,7 @@ const t = (key, params) => (window.i18n ? window.i18n.t(key, params) : key);
 
 const el = {
   langSelect: document.getElementById("langSelect"),
+  flavourSelect: document.getElementById("flavourSelect"),
   collectionPath: document.getElementById("collectionPath"),
   environmentPath: document.getElementById("environmentPath"),
   globalsPath: document.getElementById("globalsPath"),
@@ -565,6 +566,18 @@ function initLangPicker() {
   });
 }
 
+function initFlavourPicker() {
+  if (!el.flavourSelect || !window.theme) return;
+  const flavours = window.theme.listFlavours();
+  el.flavourSelect.innerHTML = flavours
+    .map((flavour) => `<option value="${flavour.id}">${flavour.name}</option>`)
+    .join("");
+  el.flavourSelect.value = window.theme.getFlavour();
+  el.flavourSelect.addEventListener("change", () => {
+    window.theme.setFlavour(el.flavourSelect.value);
+  });
+}
+
 window.addEventListener("i18n:change", () => {
   setAppState(state.status);
   renderFolderTree();
@@ -574,5 +587,6 @@ window.addEventListener("i18n:change", () => {
 
 window.i18n && window.i18n.applyTranslations();
 initLangPicker();
+initFlavourPicker();
 updateControls();
 setAppState("Ready");

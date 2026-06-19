@@ -17,9 +17,15 @@
           </div>
         </div>
         <div class="header-right">
-          <div class="lang-picker">
-            <label for="langSelect" data-i18n="label.language">Lingua</label>
-            <select id="langSelect"></select>
+          <div class="pickers">
+            <div class="lang-picker">
+              <label for="langSelect" data-i18n="label.language">Lingua</label>
+              <select id="langSelect"></select>
+            </div>
+            <div class="lang-picker">
+              <label for="flavourSelect" data-i18n="label.flavour">Flavour</label>
+              <select id="flavourSelect"></select>
+            </div>
           </div>
           <div class="run-actions">
             <button id="runAllButton" class="primary" data-i18n="btn.runAll">Run All</button>
@@ -155,6 +161,7 @@
     </main>
 
     <script src="./i18n.js"></script>
+    <script src="./theme.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

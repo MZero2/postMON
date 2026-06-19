@@ -73,7 +73,8 @@
       "msg.runNotStarted": "Run non avviata.",
       "msg.runDoneNoErr": "run completata senza errori",
       "msg.failures": "{n} failure nella run.",
-      "label.language": "Lingua"
+      "label.language": "Lingua",
+      "label.flavour": "Flavour"
     },
     en: {
       "app.subtitle": "Compact Newman runner to hunt bugs in Postman collections",
@@ -148,7 +149,8 @@
       "msg.runNotStarted": "Run not started.",
       "msg.runDoneNoErr": "run completed without errors",
       "msg.failures": "{n} failures in the run.",
-      "label.language": "Language"
+      "label.language": "Language",
+      "label.flavour": "Flavour"
     },
     fr: {
       "app.subtitle": "Lanceur Newman compact pour traquer les bugs dans les collections Postman",
@@ -223,7 +225,8 @@
       "msg.runNotStarted": "Exécution non lancée.",
       "msg.runDoneNoErr": "exécution terminée sans erreur",
       "msg.failures": "{n} échecs dans l'exécution.",
-      "label.language": "Langue"
+      "label.language": "Langue",
+      "label.flavour": "Thème"
     },
     zh: {
       "app.subtitle": "用于在 Postman 集合中追踪错误的轻量 Newman 启动器",
@@ -298,7 +301,8 @@
       "msg.runNotStarted": "运行未启动。",
       "msg.runDoneNoErr": "运行完成无错误",
       "msg.failures": "运行中 {n} 个失败。",
-      "label.language": "语言"
+      "label.language": "语言",
+      "label.flavour": "主题"
     },
     ja: {
       "app.subtitle": "Postman コレクションのバグを追うコンパクトな Newman ランナー",
@@ -373,7 +377,8 @@
       "msg.runNotStarted": "実行は開始されませんでした。",
       "msg.runDoneNoErr": "エラーなしで完了",
       "msg.failures": "実行中に {n} 件の失敗。",
-      "label.language": "言語"
+      "label.language": "言語",
+      "label.flavour": "テーマ"
     },
     ru: {
       "app.subtitle": "Компактный запускатор Newman для отлова багов в коллекциях Postman",
@@ -448,7 +453,8 @@
       "msg.runNotStarted": "Запуск не выполнен.",
       "msg.runDoneNoErr": "выполнено без ошибок",
       "msg.failures": "Сбоев в запуске: {n}.",
-      "label.language": "Язык"
+      "label.language": "Язык",
+      "label.flavour": "Тема"
     }
   };
 
