@@ -9,6 +9,8 @@ Author: MZero2. License: [MIT](LICENSE).
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-mzero2-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/mzero2)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-ea4aaa?logo=github)](https://github.com/sponsors/MZero2)
 
+![PostMON run results showing successful requests and tests](docs/images/postmon-run-results.png)
+
 ---
 
 ## Download and run (Windows)
