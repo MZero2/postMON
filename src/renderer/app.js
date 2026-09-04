@@ -40,6 +40,7 @@ const el = {
   delayRequest: document.getElementById("delayRequest"),
   proxy: document.getElementById("proxy"),
   insecure: document.getElementById("insecure"),
+  includeSensitiveData: document.getElementById("includeSensitiveData"),
   runAllButton: document.getElementById("runAllButton"),
   runSelectedButton: document.getElementById("runSelectedButton"),
   stopButton: document.getElementById("stopButton"),
@@ -452,7 +453,8 @@ async function startRun(mode) {
     timeoutRequest: el.timeoutRequest.value,
     delayRequest: el.delayRequest.value,
     proxy: el.proxy.value.trim(),
-    insecure: el.insecure.checked
+    insecure: el.insecure.checked,
+    includeSensitiveData: el.includeSensitiveData.checked
   });
 
   if (!result.ok) {

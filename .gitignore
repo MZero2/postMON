@@ -47,6 +47,9 @@ $RECYCLE.BIN/
 # Editor / IDE
 .vscode/
 .idea/
+.claude/
+.codex/
+.agents/
 *.swp
 *.swo
 *~

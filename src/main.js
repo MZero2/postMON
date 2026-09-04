@@ -1,10 +1,44 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
 let mainWindow;
 let activeRun = null;
 let runtimePatched = false;
+const trustedCollections = new Set();
+const trustedEnvironments = new Set();
+const trustedGlobals = new Set();
+const trustedReportDirs = new Set();
+const generatedReports = new Set();
+
+function normalizedPath(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function rememberPath(store, value) {
+  const normalized = normalizedPath(value);
+  if (normalized) store.add(normalized);
+  return value;
+}
+
+function isRemembered(store, value) {
+  const normalized = normalizedPath(value);
+  return Boolean(normalized && store.has(normalized));
+}
+
+function isTrustedSender(event) {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
+}
+
+function handleIpc(channel, handler) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    if (!isTrustedSender(event)) throw new Error("IPC non autorizzato.");
+    return handler(...args);
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -17,14 +51,25 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
   });
 
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event) => event.preventDefault());
+  mainWindow.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  mainWindow.webContents.session.setPermissionCheckHandler(() => false);
+  mainWindow.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  cleanupStaleTempCollections();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
@@ -34,9 +79,16 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
+app.on("before-quit", () => {
+  if (activeRun && activeRun.tempCollectionPath) {
+    removeTempCollection(activeRun.tempCollectionPath, "");
+  }
+});
+
 function getReportsDir() {
   const reportsDir = path.join(app.getPath("userData"), "reports");
   fs.mkdirSync(reportsDir, { recursive: true });
+  rememberPath(trustedReportDirs, reportsDir);
   return reportsDir;
 }
 
@@ -50,13 +102,17 @@ function stamp() {
 
 function findCollections(folderPath) {
   const found = [];
+  let scanned = 0;
 
-  function walk(current) {
+  function walk(current, depth = 0) {
+    if (depth > 30 || scanned > 10000) return;
     const entries = fs.readdirSync(current, { withFileTypes: true });
     for (const entry of entries) {
+      scanned += 1;
+      if (scanned > 10000) return;
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
-        if (!["node_modules", ".git", "dist", "reports"].includes(entry.name)) walk(fullPath);
+        if (!["node_modules", ".git", "dist", "reports"].includes(entry.name)) walk(fullPath, depth + 1);
         continue;
       }
 
@@ -72,6 +128,8 @@ function findCollections(folderPath) {
 }
 
 function listCollectionFolders(collectionPath) {
+  const stat = fs.statSync(collectionPath);
+  if (!stat.isFile() || stat.size > 50 * 1024 * 1024) throw new Error("Collection non valida o troppo grande.");
   const raw = fs.readFileSync(collectionPath, "utf8");
   const collection = JSON.parse(raw);
   const folders = [];
@@ -144,9 +202,32 @@ function buildScopedCollection(collectionPath, folderRefs) {
 
   const tempDir = path.join(app.getPath("temp"), "postmon");
   fs.mkdirSync(tempDir, { recursive: true });
-  const tempPath = path.join(tempDir, `collection-${stamp()}-${Math.random().toString(16).slice(2)}.json`);
+  const tempPath = path.join(tempDir, `collection-${stamp()}-${crypto.randomUUID()}.json`);
   fs.writeFileSync(tempPath, JSON.stringify(scoped, null, 2), "utf8");
   return tempPath;
+}
+
+function removeTempCollection(collectionPath, originalPath) {
+  if (!collectionPath || normalizedPath(collectionPath) === normalizedPath(originalPath)) return;
+  const tempRoot = normalizedPath(path.join(app.getPath("temp"), "postmon"));
+  const candidate = normalizedPath(collectionPath);
+  if (!candidate.startsWith(`${tempRoot}${path.sep}`)) return;
+  try {
+    fs.unlinkSync(collectionPath);
+  } catch {}
+}
+
+function cleanupStaleTempCollections() {
+  const tempDir = path.join(app.getPath("temp"), "postmon");
+  if (!fs.existsSync(tempDir)) return;
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const entry of fs.readdirSync(tempDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !/^collection-[a-zA-Z0-9_.-]+\.json$/.test(entry.name)) continue;
+    const filePath = path.join(tempDir, entry.name);
+    try {
+      if (fs.statSync(filePath).mtimeMs < cutoff) fs.unlinkSync(filePath);
+    } catch {}
+  }
 }
 
 function quoteCli(value) {
@@ -166,7 +247,9 @@ function buildNewmanCommand(payload, reportPath, collectionForRun) {
     parts.push("--delay-request", String(Number(payload.delayRequest)));
   }
   if (payload.proxy) parts.push("--proxy", quoteCli(payload.proxy));
-  parts.push("-r", "cli,htmlextra", "--reporter-htmlextra-export", quoteCli(reportPath));
+  if (payload.includeSensitiveData) {
+    parts.push("-r", "cli,htmlextra", "--reporter-htmlextra-export", quoteCli(reportPath));
+  }
   return parts.join(" ");
 }
 
@@ -223,9 +306,7 @@ function safeResponseSize(response) {
     try {
       const info = response.size();
       if (info && Number.isFinite(info.body)) return info.body;
-    } catch (err) {
-      // fall through
-    }
+    } catch {}
   }
   if (response.stream && Number.isFinite(response.stream.length)) return response.stream.length;
   return null;
@@ -275,6 +356,7 @@ function formatBytes(size) {
 }
 
 function writePostmonReport(reportPath, runData) {
+  const cspNonce = crypto.randomBytes(18).toString("base64");
   const failedRequests = runData.requests.filter((request) => request.error || runData.tests.some((test) => test.id === request.id && !test.passed));
   const failedTests = runData.tests.filter((test) => !test.passed);
 
@@ -293,6 +375,12 @@ function writePostmonReport(reportPath, runData) {
             )
             .join("")}</ul>`
         : '<div class="empty-block">Nessun test registrato.</div>';
+      const requestDetails = request.detailsRedacted
+        ? '<div class="empty-block">Header e body esclusi dal report.</div>'
+        : `<h5>Headers</h5>${renderHeadersBlock(request.reqHeaders)}<h5>Body</h5>${renderBodyBlock(request.reqBody, false, request.reqBody ? request.reqBody.length : 0)}`;
+      const responseDetails = request.detailsRedacted
+        ? '<div class="empty-block">Header e body esclusi dal report.</div>'
+        : `<h5>Headers</h5>${renderHeadersBlock(request.respHeaders)}<h5>Body</h5>${renderBodyBlock(request.respBody, request.respBodyTruncated, request.respBodySize)}`;
 
       return `<article class="req ${failed ? "failed" : "passed"}" id="req-${idx + 1}">
   <header>
@@ -315,17 +403,11 @@ function writePostmonReport(reportPath, runData) {
   </section>
   <details ${failed ? "open" : ""}>
     <summary>Request</summary>
-    <h5>Headers</h5>
-    ${renderHeadersBlock(request.reqHeaders)}
-    <h5>Body</h5>
-    ${renderBodyBlock(request.reqBody, false, request.reqBody ? request.reqBody.length : 0)}
+    ${requestDetails}
   </details>
   <details ${failed ? "open" : ""}>
     <summary>Response</summary>
-    <h5>Headers</h5>
-    ${renderHeadersBlock(request.respHeaders)}
-    <h5>Body</h5>
-    ${renderBodyBlock(request.respBody, request.respBodyTruncated, request.respBodySize)}
+    ${responseDetails}
   </details>
 </article>`;
     })
@@ -336,6 +418,7 @@ function writePostmonReport(reportPath, runData) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${cspNonce}'; img-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
 <title>PostMON Report</title>
 <style>
 body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#04110a;color:#d6f5e3}
@@ -390,8 +473,8 @@ pre.body{margin:0;padding:10px;background:#04110a;border:1px solid #163d28;borde
 <main>
 <h1>PostMON Report</h1>
 <div class="meta">
-  <div>Collection: ${escapeHtml(runData.collectionPath)}</div>
-  <div>Environment: ${escapeHtml(runData.environmentPath || "-")}</div>
+  <div>Collection: ${escapeHtml(path.basename(runData.collectionPath))}</div>
+  <div>Environment: ${escapeHtml(runData.environmentPath ? path.basename(runData.environmentPath) : "-")}</div>
   <div>Folders: ${escapeHtml((runData.folders || []).join(", ") || "Run All")}</div>
   <div>Generated: ${escapeHtml(new Date().toLocaleString())}</div>
 </div>
@@ -402,11 +485,15 @@ pre.body{margin:0;padding:10px;background:#04110a;border:1px solid #163d28;borde
   <div class="card"><strong>${failedTests.length}</strong><span>Test KO</span></div>
 </section>
 <div class="toolbar">
-  <button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=true)">Espandi tutto</button>
-  <button type="button" onclick="document.querySelectorAll('details').forEach(d=>d.open=false)">Comprimi tutto</button>
+  <button id="expandAll" type="button">Espandi tutto</button>
+  <button id="collapseAll" type="button">Comprimi tutto</button>
 </div>
 ${cards || '<div class="empty-list">Nessuna request registrata.</div>'}
 </main>
+<script nonce="${cspNonce}">
+document.getElementById("expandAll").addEventListener("click",()=>document.querySelectorAll("details").forEach((item)=>{item.open=true}));
+document.getElementById("collapseAll").addEventListener("click",()=>document.querySelectorAll("details").forEach((item)=>{item.open=false}));
+</script>
 </body>
 </html>`;
 
@@ -444,37 +531,37 @@ function patchRuntimeForStop() {
   runtimePatched = true;
 }
 
-ipcMain.handle("dialog:collection", async () => {
+handleIpc("dialog:collection", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Scegli collection Postman",
     properties: ["openFile"],
     filters: [{ name: "Postman collection", extensions: ["json"] }]
   });
 
-  return result.canceled ? null : result.filePaths[0];
+  return result.canceled ? null : rememberPath(trustedCollections, result.filePaths[0]);
 });
 
-ipcMain.handle("dialog:environment", async () => {
+handleIpc("dialog:environment", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Scegli environment Postman",
     properties: ["openFile"],
     filters: [{ name: "Postman environment", extensions: ["json"] }]
   });
 
-  return result.canceled ? null : result.filePaths[0];
+  return result.canceled ? null : rememberPath(trustedEnvironments, result.filePaths[0]);
 });
 
-ipcMain.handle("dialog:globals", async () => {
+handleIpc("dialog:globals", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Scegli globals Postman",
     properties: ["openFile"],
     filters: [{ name: "Postman globals", extensions: ["json"] }]
   });
 
-  return result.canceled ? null : result.filePaths[0];
+  return result.canceled ? null : rememberPath(trustedGlobals, result.filePaths[0]);
 });
 
-ipcMain.handle("dialog:folder", async () => {
+handleIpc("dialog:folder", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Scegli cartella progetto/collection",
     properties: ["openDirectory"]
@@ -482,23 +569,27 @@ ipcMain.handle("dialog:folder", async () => {
 
   if (result.canceled) return null;
   const folderPath = result.filePaths[0];
+  const collections = findCollections(folderPath);
+  collections.forEach((collectionPath) => rememberPath(trustedCollections, collectionPath));
   return {
     folderPath,
-    collections: findCollections(folderPath)
+    collections
   };
 });
 
-ipcMain.handle("dialog:reportFolder", async () => {
+handleIpc("dialog:reportFolder", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Scegli cartella report",
     properties: ["openDirectory", "createDirectory"]
   });
 
-  return result.canceled ? null : result.filePaths[0];
+  return result.canceled ? null : rememberPath(trustedReportDirs, result.filePaths[0]);
 });
 
-ipcMain.handle("collection:folders", async (_event, collectionPath) => {
-  if (!collectionPath || !fs.existsSync(collectionPath)) return { ok: false, error: "Collection non trovata." };
+handleIpc("collection:folders", async (collectionPath) => {
+  if (!isRemembered(trustedCollections, collectionPath) || !fs.existsSync(collectionPath)) {
+    return { ok: false, error: "Collection non autorizzata o non trovata." };
+  }
 
   try {
     return { ok: true, folders: listCollectionFolders(collectionPath) };
@@ -507,14 +598,18 @@ ipcMain.handle("collection:folders", async (_event, collectionPath) => {
   }
 });
 
-ipcMain.handle("report:open", async (_event, reportPath) => {
-  if (!reportPath || !fs.existsSync(reportPath)) return { ok: false, error: "Report non trovato." };
+handleIpc("report:open", async (reportPath) => {
+  if (!isRemembered(generatedReports, reportPath) || path.extname(reportPath).toLowerCase() !== ".html" || !fs.existsSync(reportPath)) {
+    return { ok: false, error: "Report non autorizzato o non trovato." };
+  }
   const error = await shell.openPath(reportPath);
   return error ? { ok: false, error } : { ok: true };
 });
 
-ipcMain.handle("report:saveCopy", async (_event, reportPath) => {
-  if (!reportPath || !fs.existsSync(reportPath)) return { ok: false, error: "Report non trovato." };
+handleIpc("report:saveCopy", async (reportPath) => {
+  if (!isRemembered(generatedReports, reportPath) || path.extname(reportPath).toLowerCase() !== ".html" || !fs.existsSync(reportPath)) {
+    return { ok: false, error: "Report non autorizzato o non trovato." };
+  }
 
   const result = await dialog.showSaveDialog(mainWindow, {
     title: "Salva copia report",
@@ -527,7 +622,7 @@ ipcMain.handle("report:saveCopy", async (_event, reportPath) => {
   return { ok: true, path: result.filePath };
 });
 
-ipcMain.handle("run:stop", async () => {
+handleIpc("run:stop", async () => {
   if (!activeRun) return { ok: false, error: "Nessuna run attiva." };
 
   activeRun.stopRequested = true;
@@ -539,9 +634,46 @@ ipcMain.handle("run:stop", async () => {
   return { ok: true, waiting: true };
 });
 
-ipcMain.handle("run:newman", async (_event, payload) => {
+handleIpc("run:newman", async (payload) => {
   if (activeRun) return { ok: false, error: "Una run e gia in corso." };
-  if (!payload || !payload.collectionPath) return { ok: false, error: "Scegli prima una collection." };
+  if (!payload || typeof payload !== "object" || !isRemembered(trustedCollections, payload.collectionPath)) {
+    return { ok: false, error: "Scegli prima una collection valida." };
+  }
+  if (payload.environmentPath && !isRemembered(trustedEnvironments, payload.environmentPath)) {
+    return { ok: false, error: "Environment non autorizzato." };
+  }
+  if (payload.globalsPath && !isRemembered(trustedGlobals, payload.globalsPath)) {
+    return { ok: false, error: "Globals non autorizzati." };
+  }
+  if (payload.reportDir && !isRemembered(trustedReportDirs, payload.reportDir)) {
+    return { ok: false, error: "Cartella report non autorizzata." };
+  }
+
+  let availableFolders;
+  try {
+    availableFolders = listCollectionFolders(payload.collectionPath);
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+  const folderByRef = new Map(availableFolders.map((folder) => [folder.ref, folder]));
+  const folderRefs = Array.isArray(payload.folderRefs) ? [...new Set(payload.folderRefs)] : [];
+  if (folderRefs.length > 1000 || folderRefs.some((ref) => typeof ref !== "string" || !folderByRef.has(ref))) {
+    return { ok: false, error: "Selezione folder non valida." };
+  }
+
+  const proxy = typeof payload.proxy === "string" ? payload.proxy.trim() : "";
+  if (proxy) {
+    try {
+      const proxyUrl = new URL(proxy);
+      if (!["http:", "https:"].includes(proxyUrl.protocol) || proxy.length > 2048) throw new Error();
+    } catch {
+      return { ok: false, error: "Proxy non valido. Usa un URL HTTP o HTTPS." };
+    }
+  }
+  payload.proxy = proxy;
+  payload.folderRefs = folderRefs;
+  payload.folders = folderRefs.map((ref) => folderByRef.get(ref).path);
+  payload.includeSensitiveData = payload.includeSensitiveData === true;
 
   let newman;
   try {
@@ -559,7 +691,8 @@ ipcMain.handle("run:newman", async (_event, payload) => {
   const baseName = `${path.basename(payload.collectionPath, ".json")}-${stamp()}`;
   const htmlReportPath = path.join(reportsDir, `${baseName}-postmon.html`);
   const htmlExtraReportPath = path.join(reportsDir, `${baseName}-htmlextra.html`);
-  const jsonReportPath = path.join(reportsDir, `${baseName}.json`);
+  rememberPath(generatedReports, htmlReportPath);
+  if (payload.includeSensitiveData) rememberPath(generatedReports, htmlExtraReportPath);
   let collectionForRun;
   try {
     collectionForRun = buildScopedCollection(payload.collectionPath, payload.folderRefs);
@@ -569,17 +702,16 @@ ipcMain.handle("run:newman", async (_event, payload) => {
 
   const options = {
     collection: collectionForRun,
-    reporters: ["json", "htmlextra"],
+    reporters: payload.includeSensitiveData ? ["htmlextra"] : [],
     reporter: {
-      json: { export: jsonReportPath },
       htmlextra: {
         export: htmlExtraReportPath,
         title: "PostMON Newman Report",
         browserTitle: "PostMON Report",
         testPaging: true,
-        showEnvironmentData: true,
-        showGlobalData: true,
-        showMarkdownLinks: true,
+        showEnvironmentData: false,
+        showGlobalData: false,
+        showMarkdownLinks: false,
         omitHeaders: false,
         omitRequestBodies: false,
         omitResponseBodies: false,
@@ -590,11 +722,19 @@ ipcMain.handle("run:newman", async (_event, payload) => {
   };
 
   const timeoutRequest = Number(payload.timeoutRequest);
+  if (!Number.isFinite(timeoutRequest) || timeoutRequest < 0 || timeoutRequest > 3600000) {
+    removeTempCollection(collectionForRun, payload.collectionPath);
+    return { ok: false, error: "Timeout non valido." };
+  }
   if (Number.isFinite(timeoutRequest) && timeoutRequest > 0) {
     options.timeoutRequest = timeoutRequest;
   }
 
   const delayRequest = Number(payload.delayRequest);
+  if (!Number.isFinite(delayRequest) || delayRequest < 0 || delayRequest > 60000) {
+    removeTempCollection(collectionForRun, payload.collectionPath);
+    return { ok: false, error: "Delay non valido." };
+  }
   if (Number.isFinite(delayRequest) && delayRequest > 0) {
     options.delayRequest = delayRequest;
   }
@@ -613,13 +753,22 @@ ipcMain.handle("run:newman", async (_event, payload) => {
       environmentPath: payload.environmentPath || "",
       folders: payload.folders || [],
       requests: [],
-      tests: []
+      tests: [],
+      includeSensitiveData: payload.includeSensitiveData
     };
-    const emitter = newman.run(options);
+    let emitter;
+    try {
+      emitter = newman.run(options);
+    } catch (error) {
+      removeTempCollection(collectionForRun, payload.collectionPath);
+      resolve({ ok: false, error: error.message });
+      return;
+    }
     activeRun = emitter;
     activeRun.stopRequested = false;
+    activeRun.tempCollectionPath = collectionForRun;
 
-    resolve({ ok: true, reportPath: htmlReportPath, jsonReportPath, htmlExtraReportPath });
+    resolve({ ok: true, reportPath: htmlReportPath, htmlExtraReportPath: payload.includeSensitiveData ? htmlExtraReportPath : null });
     send("run:started", {
       collectionPath: payload.collectionPath,
       collectionForRun,
@@ -627,8 +776,7 @@ ipcMain.handle("run:newman", async (_event, payload) => {
       globalsPath: payload.globalsPath || null,
       folders: payload.folders || [],
       reportPath: htmlReportPath,
-      htmlExtraReportPath,
-      jsonReportPath,
+      htmlExtraReportPath: payload.includeSensitiveData ? htmlExtraReportPath : null,
       command: buildNewmanCommand(payload, htmlExtraReportPath, collectionForRun)
     });
 
@@ -640,7 +788,7 @@ ipcMain.handle("run:newman", async (_event, payload) => {
         id: cursorId(args.cursor),
         name: args.item ? args.item.name : "Request",
         method: requestObj ? requestObj.method : "",
-        url: requestObj && requestObj.url ? requestObj.url.toString() : "",
+        url: requestObj && requestObj.url ? requestObj.url.toString().replace(/[?#].*$/, "") : "",
         status: response ? response.status : "",
         code: response ? response.code : null,
         responseTime: response ? response.responseTime : null,
@@ -649,12 +797,13 @@ ipcMain.handle("run:newman", async (_event, payload) => {
       };
       const full = {
         ...slim,
-        reqHeaders: listHeaders(requestObj && requestObj.headers),
-        reqBody: extractRequestBody(requestObj && requestObj.body),
-        respHeaders: listHeaders(response && response.headers),
-        respBody: respBody.text,
+        reqHeaders: payload.includeSensitiveData ? listHeaders(requestObj && requestObj.headers) : [],
+        reqBody: payload.includeSensitiveData ? extractRequestBody(requestObj && requestObj.body) : "",
+        respHeaders: payload.includeSensitiveData ? listHeaders(response && response.headers) : [],
+        respBody: payload.includeSensitiveData ? respBody.text : "",
         respBodyTruncated: respBody.truncated,
-        respBodySize: respBody.size
+        respBodySize: respBody.size,
+        detailsRedacted: !payload.includeSensitiveData
       };
       runData.requests.push(full);
       send("run:request", slim);
@@ -680,20 +829,26 @@ ipcMain.handle("run:newman", async (_event, payload) => {
     });
 
     emitter.on("done", (error, summary) => {
-      const wasStopped = Boolean(activeRun && activeRun.stopRequested);
+      const finishedRun = activeRun;
+      const wasStopped = Boolean(finishedRun && finishedRun.stopRequested);
       activeRun = null;
+      removeTempCollection(finishedRun && finishedRun.tempCollectionPath, payload.collectionPath);
       const stats = summary && summary.run ? summary.run.stats : null;
       const failures = summary && summary.run ? summary.run.failures : [];
-      writePostmonReport(htmlReportPath, runData);
-      const reportReady = fs.existsSync(htmlReportPath) && fs.statSync(htmlReportPath).size > 0;
+      let reportError = null;
+      try {
+        writePostmonReport(htmlReportPath, runData);
+      } catch (writeError) {
+        reportError = writeError.message;
+      }
+      const reportReady = !reportError && fs.existsSync(htmlReportPath) && fs.statSync(htmlReportPath).size > 0;
 
       send("run:done", {
         ok: !error && failures.length === 0 && reportReady,
         stopped: wasStopped,
-        error: error ? error.message : reportReady ? null : "Report HTML non finalizzato.",
+        error: error ? error.message : reportError || (reportReady ? null : "Report HTML non finalizzato."),
         reportPath: htmlReportPath,
-        htmlExtraReportPath,
-        jsonReportPath,
+        htmlExtraReportPath: payload.includeSensitiveData ? htmlExtraReportPath : null,
         reportReady,
         durationMs: Date.now() - startedAt,
         stats,

@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
     <title>PostMON</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -106,6 +107,11 @@
         <label class="check">
           <input id="insecure" type="checkbox" />
           <span data-i18n="label.insecure">Ignora errori SSL</span>
+        </label>
+
+        <label class="check">
+          <input id="includeSensitiveData" type="checkbox" />
+          <span data-i18n="label.includeSensitiveData">Includi header e body nei report</span>
         </label>
 
         <div class="field wide">

@@ -1,13 +1,17 @@
 {
   "name": "postmon",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A compact cyber-style Electron launcher and report viewer for Newman/Postman collection runs.",
   "author": "MZero2",
   "main": "src/main.js",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "start": "electron .",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer/app.js && node --check src/renderer/i18n.js && node --check src/renderer/theme.js",
+    "test": "node test/newman-smoke.js",
     "package:win": "electron-builder --win portable"
   },
   "dependencies": {
@@ -15,8 +19,30 @@
     "newman-reporter-htmlextra": "^1.23.1"
   },
   "devDependencies": {
-    "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
+    "electron": "^41.7.1",
+    "electron-builder": "^26.15.3"
+  },
+  "overrides": {
+    "flatted": "3.4.4",
+    "handlebars": "4.7.9",
+    "ip-address": "10.7.0",
+    "jose": "4.15.9",
+    "lodash": "4.18.1",
+    "node-forge": "1.4.0",
+    "qs": "6.16.0",
+    "underscore": "1.13.8",
+    "@budibase/handlebars-helpers": {
+      "uuid": "11.1.1"
+    },
+    "postman-collection": {
+      "uuid": "11.1.1"
+    },
+    "postman-request": {
+      "uuid": "11.1.1"
+    },
+    "postman-runtime": {
+      "uuid": "11.1.1"
+    }
   },
   "build": {
     "appId": "local.postmon",
@@ -29,8 +55,17 @@
       "node_modules/**/*",
       "package.json"
     ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "enableCookieEncryption": true
+    },
     "win": {
       "target": "portable",
+      "artifactName": "PostMON-${version}.${ext}",
       "signAndEditExecutable": false
     }
   }
