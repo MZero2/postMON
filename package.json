@@ -1,6 +1,6 @@
 {
   "name": "postmon",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A compact cyber-style Electron launcher and report viewer for Newman/Postman collection runs.",
   "author": "MZero2",
   "main": "src/main.js",
