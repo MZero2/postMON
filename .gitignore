@@ -31,6 +31,13 @@ newman/
 config.local.json
 local.config.json
 
+# DB client exports / password dumps
+dbeaver-passwords*
+*-passwords.txt
+*.pwd
+credentials.json
+credentials.txt
+
 # Postman exports (may contain auth, tokens)
 *.postman_collection.json
 *.postman_environment.json
