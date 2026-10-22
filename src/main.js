@@ -232,7 +232,10 @@ function cleanupStaleTempCollections() {
 
 function quoteCli(value) {
   if (!value) return "";
-  return `"${String(value).replace(/"/g, '\\"')}"`;
+  const escaped = String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+  return `"${escaped}"`;
 }
 
 function buildNewmanCommand(payload, reportPath, collectionForRun) {

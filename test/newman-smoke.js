@@ -5,11 +5,11 @@ const os = require("os");
 const path = require("path");
 const newman = require("newman");
 
-const secret = `postmon-secret-${crypto.randomUUID()}`;
+const canaryToken = `postmon-canary-${crypto.randomUUID()}`;
 const reportPath = path.join(os.tmpdir(), `postmon-smoke-${crypto.randomUUID()}.html`);
 const server = http.createServer((_request, response) => {
-  response.writeHead(200, { "content-type": "application/json", "set-cookie": `session=${secret}` });
-  response.end(JSON.stringify({ ok: true, secret }));
+  response.writeHead(200, { "content-type": "application/json" });
+  response.end(JSON.stringify({ ok: true, canary: canaryToken }));
 });
 
 function finish(error) {
@@ -43,7 +43,7 @@ server.listen(0, "127.0.0.1", () => {
         name: "Local request",
         request: {
           method: "GET",
-          header: [{ key: "Authorization", value: `Bearer ${secret}` }],
+          header: [{ key: "Authorization", value: `Bearer ${canaryToken}` }],
           url: `http://127.0.0.1:${address.port}/smoke`
         },
         event: [
@@ -81,7 +81,7 @@ server.listen(0, "127.0.0.1", () => {
       if (summary.run.failures.length) return finish(new Error("La smoke run Newman contiene failure."));
       if (!fs.existsSync(reportPath)) return finish(new Error("Il report htmlextra non e stato generato."));
       const report = fs.readFileSync(reportPath, "utf8");
-      if (report.includes(secret)) return finish(new Error("Il report htmlextra contiene dati sensibili."));
+      if (report.includes(canaryToken)) return finish(new Error("Il report htmlextra contiene dati sensibili."));
       newman.run({ collection, reporters: [] }, (safeError, safeSummary) => {
         if (safeError) return finish(safeError);
         if (safeSummary.run.failures.length) return finish(new Error("La smoke run sicura contiene failure."));
