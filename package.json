@@ -1,6 +1,6 @@
 {
   "name": "postmon",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "A compact cyber-style Electron launcher and report viewer for Newman/Postman collection runs.",
   "author": "MZero2",
   "main": "src/main.js",
@@ -24,7 +24,7 @@
   },
   "overrides": {
     "flatted": "3.4.4",
-    "handlebars": "4.7.9",
+    "handlebars": "4.7.10",
     "ip-address": "10.7.0",
     "jose": "4.15.9",
     "lodash": "4.18.1",
